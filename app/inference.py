@@ -27,12 +27,12 @@ class InferenceModel:
         # If no path provided, try to find it automatically
         if ckpt_path is None:
             possible_paths = [
-                Path("models/best_model.pth"),
-                Path("app/models/best_model.pth"),
-                Path("../models/best_model.pth"),
-                Path("./models/best_model.pth"),
-                Path(os.path.join(os.path.dirname(__file__), "models", "best_model.pth")),
-                Path("best_model.pth"),
+                Path("models/best.pt"),
+                Path("app/models/best.pt"),
+                Path("../models/best.pt"),
+                Path("./models/best.pt"),
+                Path(os.path.join(os.path.dirname(__file__), "models", "best.pt")),
+                Path("best.pt"),
             ]
             ckpt_path = None
             for path in possible_paths:
@@ -41,7 +41,7 @@ class InferenceModel:
                     break
             if ckpt_path is None:
                 raise FileNotFoundError(
-                    f"Model file 'best_model.pth' not found. Tried: {[str(p) for p in possible_paths]}"
+                    f"Model file 'best.pt' not found. Tried: {[str(p) for p in possible_paths]}"
                 )
         
         ckpt_path = Path(ckpt_path)
