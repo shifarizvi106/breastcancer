@@ -41,7 +41,6 @@
             margin-bottom: 30px;
         }
         
-        /* Upload Area */
         .upload-area {
             border: 2px dashed #ff9ac8;
             border-radius: 12px;
@@ -84,7 +83,6 @@
             display: none;
         }
         
-        /* Preview */
         #previewContainer {
             display: none;
             margin: 20px 0;
@@ -98,7 +96,6 @@
             box-shadow: 0 4px 15px rgba(0,0,0,0.08);
         }
         
-        /* Buttons */
         .btn {
             background: #ff7ab6;
             color: white;
@@ -137,7 +134,6 @@
             transform: translateY(-2px);
         }
         
-        /* Loading */
         #loading {
             display: none;
             margin: 20px 0;
@@ -164,7 +160,6 @@
             font-size: 14px;
         }
         
-        /* Result */
         #result {
             display: none;
             margin-top: 20px;
@@ -235,10 +230,9 @@
             font-size: 13px;
         }
         
-        /* Status */
         .status-bar {
             margin-top: 15px;
-            padding: 8px;
+            padding: 10px;
             border-radius: 8px;
             font-size: 13px;
             display: none;
@@ -263,7 +257,6 @@
             color: #0d47a1;
         }
         
-        /* Footer */
         .footer {
             margin-top: 25px;
             font-size: 11px;
@@ -276,7 +269,6 @@
         <h1>🩺 AI-MedVision</h1>
         <p class="subtitle">Pneumonia Detection from Chest X-Ray</p>
         
-        <!-- Upload -->
         <div class="upload-area" id="dropZone">
             <span class="upload-icon">📤</span>
             <div class="upload-text">Drop image here or click to browse</div>
@@ -284,25 +276,20 @@
             <input type="file" id="fileInput" accept="image/*">
         </div>
         
-        <!-- Preview -->
         <div id="previewContainer">
             <img id="preview" alt="Preview">
         </div>
         
-        <!-- Predict Button -->
         <button class="btn" id="predictBtn" onclick="predict()" disabled>🔍 Predict</button>
         <button class="btn btn-secondary" onclick="clearImage()" style="display:none;" id="clearBtn">✕ Clear</button>
         
-        <!-- Loading -->
         <div id="loading">
             <div class="spinner"></div>
             <div class="loading-text">Analyzing image...</div>
         </div>
         
-        <!-- Status -->
         <div class="status-bar" id="statusBar"></div>
         
-        <!-- Result -->
         <div id="result">
             <div class="result-label" id="diagnosis"></div>
             <div class="result-confidence">Confidence: <span id="confidence"></span>%</div>
@@ -352,7 +339,6 @@
         });
         
         function handleFile(file) {
-            // Validate
             if (!file.type.startsWith('image/')) {
                 showStatus('Please upload an image file', 'error');
                 return;
@@ -368,12 +354,14 @@
             predictBtn.disabled = false;
             hideStatus();
             
-            // Preview
             const reader = new FileReader();
             reader.onload = (e) => {
                 preview.src = e.target.result;
                 previewContainer.style.display = 'block';
                 result.classList.remove('show');
+            };
+            reader.onerror = () => {
+                showStatus('Failed to read image file', 'error');
             };
             reader.readAsDataURL(file);
         }
@@ -409,16 +397,30 @@
                     body: formData
                 });
                 
+                // Check if response is OK
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    let errorMsg = 'Server error';
+                    try {
+                        const errorJson = JSON.parse(errorText);
+                        errorMsg = errorJson.detail || errorJson.error || errorMsg;
+                    } catch (e) {
+                        errorMsg = errorText || errorMsg;
+                    }
+                    throw new Error(errorMsg);
+                }
+                
                 const data = await response.json();
                 
                 if (data.success) {
                     displayResult(data);
                     showStatus('✅ Prediction complete', 'success');
                 } else {
-                    showStatus('❌ ' + (data.detail || 'Prediction failed'), 'error');
+                    showStatus('❌ ' + (data.detail || data.error || 'Prediction failed'), 'error');
                 }
             } catch (error) {
-                showStatus('❌ Network error: ' + error.message, 'error');
+                console.error('Prediction error:', error);
+                showStatus('❌ ' + error.message, 'error');
             } finally {
                 predictBtn.disabled = false;
                 loading.style.display = 'none';
@@ -436,21 +438,22 @@
             const probsDiv = document.getElementById('probabilities');
             probsDiv.innerHTML = '';
             
-            for (const [cls, prob] of Object.entries(data.probabilities)) {
-                const probPercent = (prob * 100).toFixed(1);
-                const div = document.createElement('div');
-                div.className = 'prob-item';
-                div.innerHTML = `
-                    <span>${cls}</span>
-                    <div class="prob-bar">
-                        <div class="prob-fill" style="width: ${probPercent}%"></div>
-                    </div>
-                    <span class="prob-value">${probPercent}%</span>
-                `;
-                probsDiv.appendChild(div);
+            if (data.probabilities) {
+                for (const [cls, prob] of Object.entries(data.probabilities)) {
+                    const probPercent = (prob * 100).toFixed(1);
+                    const div = document.createElement('div');
+                    div.className = 'prob-item';
+                    div.innerHTML = `
+                        <span>${cls}</span>
+                        <div class="prob-bar">
+                            <div class="prob-fill" style="width: ${probPercent}%"></div>
+                        </div>
+                        <span class="prob-value">${probPercent}%</span>
+                    `;
+                    probsDiv.appendChild(div);
+                }
             }
             
-            // Scroll to result
             result.scrollIntoView({ behavior: 'smooth', block: 'center' });
         }
         
