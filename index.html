@@ -1,0 +1,474 @@
+<!-- templates/index.html -->
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI-MedVision</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        
+        body {
+            font-family: -apple-system, 'SF Pro Text', sans-serif;
+            background: #ffe4f0;
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+        
+        .container {
+            background: white;
+            border-radius: 16px;
+            padding: 40px;
+            max-width: 500px;
+            width: 100%;
+            box-shadow: 0 10px 40px rgba(255, 122, 182, 0.15);
+            text-align: center;
+        }
+        
+        h1 {
+            color: #2a2a2a;
+            font-size: 28px;
+            font-weight: 700;
+            margin-bottom: 6px;
+        }
+        
+        .subtitle {
+            color: #888;
+            font-size: 14px;
+            margin-bottom: 30px;
+        }
+        
+        /* Upload Area */
+        .upload-area {
+            border: 2px dashed #ff9ac8;
+            border-radius: 12px;
+            padding: 40px 20px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            background: #fff5f9;
+            margin-bottom: 20px;
+        }
+        
+        .upload-area:hover {
+            border-color: #ff7ab6;
+            background: #fff0f5;
+        }
+        
+        .upload-area.dragover {
+            border-color: #ff7ab6;
+            background: #ffe4f0;
+            transform: scale(1.01);
+        }
+        
+        .upload-icon {
+            font-size: 40px;
+            display: block;
+            margin-bottom: 10px;
+        }
+        
+        .upload-text {
+            color: #666;
+            font-size: 15px;
+        }
+        
+        .upload-hint {
+            color: #aaa;
+            font-size: 12px;
+            margin-top: 6px;
+        }
+        
+        #fileInput {
+            display: none;
+        }
+        
+        /* Preview */
+        #previewContainer {
+            display: none;
+            margin: 20px 0;
+            position: relative;
+        }
+        
+        #preview {
+            max-width: 100%;
+            max-height: 300px;
+            border-radius: 10px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.08);
+        }
+        
+        /* Buttons */
+        .btn {
+            background: #ff7ab6;
+            color: white;
+            border: none;
+            padding: 14px 40px;
+            border-radius: 10px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            width: 100%;
+            margin-top: 10px;
+        }
+        
+        .btn:hover:not(:disabled) {
+            background: #e0659e;
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(255, 122, 182, 0.35);
+        }
+        
+        .btn:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+            transform: none !important;
+        }
+        
+        .btn-secondary {
+            background: transparent;
+            color: #ff7ab6;
+            border: 2px solid #ff9ac8;
+            margin-top: 8px;
+        }
+        
+        .btn-secondary:hover:not(:disabled) {
+            background: #fff5f9;
+            transform: translateY(-2px);
+        }
+        
+        /* Loading */
+        #loading {
+            display: none;
+            margin: 20px 0;
+            padding: 20px;
+        }
+        
+        .spinner {
+            width: 36px;
+            height: 36px;
+            border: 3px solid #ffe4f0;
+            border-top: 3px solid #ff7ab6;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+            margin: 0 auto 12px;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        .loading-text {
+            color: #888;
+            font-size: 14px;
+        }
+        
+        /* Result */
+        #result {
+            display: none;
+            margin-top: 20px;
+            padding: 20px;
+            border-radius: 12px;
+            animation: fadeIn 0.4s ease;
+        }
+        
+        #result.show {
+            display: block;
+        }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        
+        #result.normal {
+            background: #e8f5e9;
+            border: 2px solid #66bb6a;
+        }
+        
+        #result.pneumonia {
+            background: #fce4ec;
+            border: 2px solid #ef5350;
+        }
+        
+        .result-label {
+            font-size: 28px;
+            font-weight: 700;
+            margin-bottom: 4px;
+        }
+        
+        .result-confidence {
+            font-size: 14px;
+            color: #666;
+            margin-bottom: 15px;
+        }
+        
+        .prob-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 6px 0;
+            font-size: 14px;
+        }
+        
+        .prob-bar {
+            flex: 1;
+            height: 6px;
+            background: #f0f0f0;
+            border-radius: 4px;
+            margin: 0 12px;
+            overflow: hidden;
+        }
+        
+        .prob-fill {
+            height: 100%;
+            border-radius: 4px;
+            transition: width 0.8s ease;
+            background: linear-gradient(90deg, #ff9ac8, #ff7ab6);
+        }
+        
+        .prob-value {
+            min-width: 50px;
+            text-align: right;
+            color: #666;
+            font-size: 13px;
+        }
+        
+        /* Status */
+        .status-bar {
+            margin-top: 15px;
+            padding: 8px;
+            border-radius: 8px;
+            font-size: 13px;
+            display: none;
+        }
+        
+        .status-bar.show {
+            display: block;
+        }
+        
+        .status-bar.success {
+            background: #e8f5e9;
+            color: #2e7d32;
+        }
+        
+        .status-bar.error {
+            background: #fce4ec;
+            color: #c62828;
+        }
+        
+        .status-bar.info {
+            background: #e3f2fd;
+            color: #0d47a1;
+        }
+        
+        /* Footer */
+        .footer {
+            margin-top: 25px;
+            font-size: 11px;
+            color: #ccc;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🩺 AI-MedVision</h1>
+        <p class="subtitle">Pneumonia Detection from Chest X-Ray</p>
+        
+        <!-- Upload -->
+        <div class="upload-area" id="dropZone">
+            <span class="upload-icon">📤</span>
+            <div class="upload-text">Drop image here or click to browse</div>
+            <div class="upload-hint">JPG, PNG, JPEG supported</div>
+            <input type="file" id="fileInput" accept="image/*">
+        </div>
+        
+        <!-- Preview -->
+        <div id="previewContainer">
+            <img id="preview" alt="Preview">
+        </div>
+        
+        <!-- Predict Button -->
+        <button class="btn" id="predictBtn" onclick="predict()" disabled>🔍 Predict</button>
+        <button class="btn btn-secondary" onclick="clearImage()" style="display:none;" id="clearBtn">✕ Clear</button>
+        
+        <!-- Loading -->
+        <div id="loading">
+            <div class="spinner"></div>
+            <div class="loading-text">Analyzing image...</div>
+        </div>
+        
+        <!-- Status -->
+        <div class="status-bar" id="statusBar"></div>
+        
+        <!-- Result -->
+        <div id="result">
+            <div class="result-label" id="diagnosis"></div>
+            <div class="result-confidence">Confidence: <span id="confidence"></span>%</div>
+            <div id="probabilities"></div>
+        </div>
+        
+        <div class="footer">⚕️ For medical professionals only</div>
+    </div>
+
+    <script>
+        let selectedFile = null;
+        
+        const dropZone = document.getElementById('dropZone');
+        const fileInput = document.getElementById('fileInput');
+        const preview = document.getElementById('preview');
+        const previewContainer = document.getElementById('previewContainer');
+        const predictBtn = document.getElementById('predictBtn');
+        const clearBtn = document.getElementById('clearBtn');
+        const loading = document.getElementById('loading');
+        const result = document.getElementById('result');
+        const statusBar = document.getElementById('statusBar');
+        
+        // Upload handlers
+        dropZone.addEventListener('click', () => fileInput.click());
+        
+        dropZone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            dropZone.classList.add('dragover');
+        });
+        
+        dropZone.addEventListener('dragleave', () => {
+            dropZone.classList.remove('dragover');
+        });
+        
+        dropZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dropZone.classList.remove('dragover');
+            if (e.dataTransfer.files.length) {
+                handleFile(e.dataTransfer.files[0]);
+            }
+        });
+        
+        fileInput.addEventListener('change', (e) => {
+            if (e.target.files.length) {
+                handleFile(e.target.files[0]);
+            }
+        });
+        
+        function handleFile(file) {
+            // Validate
+            if (!file.type.startsWith('image/')) {
+                showStatus('Please upload an image file', 'error');
+                return;
+            }
+            
+            if (file.size > 16 * 1024 * 1024) {
+                showStatus('File too large (max 16MB)', 'error');
+                return;
+            }
+            
+            selectedFile = file;
+            clearBtn.style.display = 'inline-block';
+            predictBtn.disabled = false;
+            hideStatus();
+            
+            // Preview
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                preview.src = e.target.result;
+                previewContainer.style.display = 'block';
+                result.classList.remove('show');
+            };
+            reader.readAsDataURL(file);
+        }
+        
+        function clearImage() {
+            selectedFile = null;
+            fileInput.value = '';
+            previewContainer.style.display = 'none';
+            preview.src = '';
+            result.classList.remove('show');
+            clearBtn.style.display = 'none';
+            predictBtn.disabled = true;
+            hideStatus();
+        }
+        
+        async function predict() {
+            if (!selectedFile) {
+                showStatus('Please select an image first', 'error');
+                return;
+            }
+            
+            predictBtn.disabled = true;
+            loading.style.display = 'block';
+            result.classList.remove('show');
+            hideStatus();
+            
+            const formData = new FormData();
+            formData.append('file', selectedFile);
+            
+            try {
+                const response = await fetch('/predict', {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    displayResult(data);
+                    showStatus('✅ Prediction complete', 'success');
+                } else {
+                    showStatus('❌ ' + (data.detail || 'Prediction failed'), 'error');
+                }
+            } catch (error) {
+                showStatus('❌ Network error: ' + error.message, 'error');
+            } finally {
+                predictBtn.disabled = false;
+                loading.style.display = 'none';
+            }
+        }
+        
+        function displayResult(data) {
+            const isPneumonia = data.prediction === 'PNEUMONIA';
+            
+            result.className = 'show ' + (isPneumonia ? 'pneumonia' : 'normal');
+            document.getElementById('diagnosis').textContent = data.prediction;
+            document.getElementById('diagnosis').style.color = isPneumonia ? '#c62828' : '#2e7d32';
+            document.getElementById('confidence').textContent = data.confidence;
+            
+            const probsDiv = document.getElementById('probabilities');
+            probsDiv.innerHTML = '';
+            
+            for (const [cls, prob] of Object.entries(data.probabilities)) {
+                const probPercent = (prob * 100).toFixed(1);
+                const div = document.createElement('div');
+                div.className = 'prob-item';
+                div.innerHTML = `
+                    <span>${cls}</span>
+                    <div class="prob-bar">
+                        <div class="prob-fill" style="width: ${probPercent}%"></div>
+                    </div>
+                    <span class="prob-value">${probPercent}%</span>
+                `;
+                probsDiv.appendChild(div);
+            }
+            
+            // Scroll to result
+            result.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+        
+        function showStatus(message, type) {
+            statusBar.textContent = message;
+            statusBar.className = 'status-bar show ' + type;
+        }
+        
+        function hideStatus() {
+            statusBar.className = 'status-bar';
+        }
+        
+        // Keyboard shortcut
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' && !predictBtn.disabled) {
+                predict();
+            }
+        });
+    </script>
+</body>
+</html>
