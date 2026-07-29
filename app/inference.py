@@ -1,25 +1,46 @@
 # app/inference.py
 from pathlib import Path
-from typing import Dict, Optional
+from typing import Dict
 import torch
 from torchvision import transforms, models
 from PIL import Image
-import logging
+import os
+import sys
 
-# Setup logging
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+# Add the current directory to path if needed
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 # ---- Device selection (Apple MPS > CUDA > CPU) ----
 if torch.backends.mps.is_available():
     DEVICE = torch.device("mps")        # Apple Silicon GPU
-    logger.info("Using MPS device (Apple Silicon)")
 elif torch.cuda.is_available():
     DEVICE = torch.device("cuda")       # NVIDIA GPU
-    logger.info("Using CUDA device")
 else:
     DEVICE = torch.device("cpu")        # Fallback CPU
-    logger.info("Using CPU device")
+
+# Try to get the correct path for GitHub deployment
+def get_model_path():
+    """Find the model file in various possible locations"""
+    possible_paths = [
+        Path("models/best_model.pth"),
+        Path("app/models/best_model.pth"),
+        Path("../models/best_model.pth"),
+        Path("./models/best_model.pth"),
+        Path(os.path.join(os.path.dirname(__file__), "models", "best_model.pth")),
+        Path(os.path.join(os.path.dirname(os.path.dirname(__file__)), "models", "best_model.pth")),
+    ]
+    
+    for path in possible_paths:
+        if path.exists():
+            print(f"✅ Found model at: {path.absolute()}")
+            return path
+    
+    # If not found, raise error with helpful message
+    raise FileNotFoundError(
+        f"Model file 'best_model.pth' not found in any of these locations:\n" +
+        "\n".join([f"  - {p.absolute()}" for p in possible_paths]) +
+        f"\n\nCurrent working directory: {os.getcwd()}"
+    )
 
 class InferenceModel:
     """
@@ -30,52 +51,33 @@ class InferenceModel:
       - "img_size": int (e.g., 224)
     """
 
-    def __init__(self, ckpt_path: str | Path):
-        ckpt_path = Path(ckpt_path)
-        logger.info(f"Looking for checkpoint at: {ckpt_path.absolute()}")
+    def __init__(self, ckpt_path: str | Path = None):
+        # If no path provided, try to find it automatically
+        if ckpt_path is None:
+            ckpt_path = get_model_path()
         
+        ckpt_path = Path(ckpt_path)
         if not ckpt_path.exists():
-            # Try to find the file in common locations
-            possible_paths = [
-                ckpt_path,
-                Path("models") / ckpt_path.name,
-                Path("app") / "models" / ckpt_path.name,
-                Path("../models") / ckpt_path.name,
-                Path(".") / ckpt_path.name,
-            ]
-            
-            found = False
-            for path in possible_paths:
-                if path.exists():
-                    ckpt_path = path
-                    found = True
-                    logger.info(f"Found checkpoint at: {ckpt_path.absolute()}")
-                    break
-            
-            if not found:
-                raise FileNotFoundError(
-                    f"Checkpoint not found at: {ckpt_path}\n"
-                    f"Tried: {[str(p) for p in possible_paths]}\n"
-                    f"Current working directory: {Path.cwd()}"
-                )
+            raise FileNotFoundError(f"Checkpoint not found at: {ckpt_path}")
 
         try:
+            # Load checkpoint with appropriate device
             ckpt = torch.load(ckpt_path, map_location=DEVICE)
-            logger.info(f"Successfully loaded checkpoint from {ckpt_path}")
+            print(f"✅ Successfully loaded checkpoint from {ckpt_path}")
         except Exception as e:
             raise RuntimeError(f"Failed to load checkpoint: {e}")
 
         self.img_size: int = int(ckpt.get("img_size", 224))
         
-        # Handle classes with fallback
-        if "classes" not in ckpt:
-            logger.warning("No classes found in checkpoint, using default ['NORMAL','PNEUMONIA']")
-            self.classes = ["NORMAL", "PNEUMONIA"]
-        else:
+        # Handle classes gracefully
+        if "classes" in ckpt:
             self.classes = list(ckpt["classes"])
-            if len(self.classes) != 2 or not all(c in self.classes for c in ["NORMAL", "PNEUMONIA"]):
-                logger.warning(f"Expected classes ['NORMAL','PNEUMONIA'], got {self.classes}. Using default.")
+            if len(self.classes) != 2:
+                print(f"⚠️ Warning: Expected 2 classes, got {len(self.classes)}. Using default.")
                 self.classes = ["NORMAL", "PNEUMONIA"]
+        else:
+            print("⚠️ Warning: No classes found in checkpoint. Using default ['NORMAL','PNEUMONIA']")
+            self.classes = ["NORMAL", "PNEUMONIA"]
 
         # Build model and load weights
         self.model = models.efficientnet_b0(weights=None)
@@ -85,17 +87,17 @@ class InferenceModel:
         if "state_dict" in ckpt:
             try:
                 self.model.load_state_dict(ckpt["state_dict"])
-                logger.info("Successfully loaded model weights")
+                print("✅ Successfully loaded model weights")
             except Exception as e:
                 raise RuntimeError(f"Failed to load model weights: {e}")
         else:
-            logger.warning("No state_dict found in checkpoint. Using untrained model.")
+            raise RuntimeError("No state_dict found in checkpoint")
 
         self.model.eval().to(DEVICE)
 
         # Preprocessing (must match training normalization)
         mean = [0.485, 0.456, 0.406]
-        std = [0.229, 0.224, 0.225]
+        std  = [0.229, 0.224, 0.225]
         self.tf = transforms.Compose([
             transforms.Resize((self.img_size, self.img_size)),
             transforms.ToTensor(),
@@ -103,8 +105,11 @@ class InferenceModel:
         ])
 
         # cache indices for speed/clarity
-        self.idx_normal = self.classes.index("NORMAL")
-        self.idx_pneum = self.classes.index("PNEUMONIA")
+        self.idx_normal = self.classes.index("NORMAL") if "NORMAL" in self.classes else 0
+        self.idx_pneum = self.classes.index("PNEUMONIA") if "PNEUMONIA" in self.classes else 1
+        
+        print(f"✅ Model initialized with classes: {self.classes}")
+        print(f"✅ Using device: {DEVICE}")
 
     @torch.inference_mode()
     def predict(self, pil_img: Image.Image, threshold: float = 0.85) -> Dict:
@@ -131,46 +136,26 @@ class InferenceModel:
             label_idx = self.idx_pneum if pneu_prob >= threshold else self.idx_normal
 
             return {
-                "status": "success",
                 "label": self.classes[label_idx],
                 "confidence": float(probs[label_idx]),
                 "probs": {c: float(p) for c, p in zip(self.classes, probs)}
             }
         except Exception as e:
-            logger.error(f"Prediction failed: {e}")
+            print(f"❌ Prediction error: {e}")
             return {
-                "status": "error",
+                "label": "ERROR",
+                "confidence": 0.0,
+                "probs": {},
                 "error": str(e)
             }
 
-# Singleton pattern for model loading
+# Global instance for reuse
 _model_instance = None
 
-def get_model(ckpt_path: Optional[str | Path] = None):
-    """Get or create the model instance (singleton pattern)"""
+def get_model(ckpt_path: str | Path = None):
+    """Get or create a singleton model instance"""
     global _model_instance
-    
     if _model_instance is None:
-        if ckpt_path is None:
-            # Try to find model in default locations
-            default_paths = [
-                Path("models/best_model.pth"),
-                Path("app/models/best_model.pth"),
-                Path("../models/best_model.pth"),
-                Path("best_model.pth"),
-            ]
-            
-            for path in default_paths:
-                if path.exists():
-                    ckpt_path = path
-                    break
-            
-            if ckpt_path is None:
-                raise FileNotFoundError(
-                    "No checkpoint path provided and no default model found.\n"
-                    f"Tried: {[str(p) for p in default_paths]}"
-                )
-        
+        print("🔄 Loading model for the first time...")
         _model_instance = InferenceModel(ckpt_path)
-    
     return _model_instance
