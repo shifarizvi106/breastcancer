@@ -4,7 +4,6 @@ from typing import Dict
 import torch
 from torchvision import transforms, models
 from PIL import Image
-import os
 
 # ---- Device selection (Apple MPS > CUDA > CPU) ----
 if torch.backends.mps.is_available():
@@ -23,27 +22,7 @@ class InferenceModel:
       - "img_size": int (e.g., 224)
     """
 
-    def __init__(self, ckpt_path: str | Path = None):
-        # If no path provided, try to find it automatically
-        if ckpt_path is None:
-            possible_paths = [
-                Path("models/best.pt"),
-                Path("app/models/best.pt"),
-                Path("../models/best.pt"),
-                Path("./models/best.pt"),
-                Path(os.path.join(os.path.dirname(__file__), "models", "best.pt")),
-                Path("best.pt"),
-            ]
-            ckpt_path = None
-            for path in possible_paths:
-                if path.exists():
-                    ckpt_path = path
-                    break
-            if ckpt_path is None:
-                raise FileNotFoundError(
-                    f"Model file 'best.pt' not found. Tried: {[str(p) for p in possible_paths]}"
-                )
-        
+    def __init__(self, ckpt_path: str | Path):
         ckpt_path = Path(ckpt_path)
         if not ckpt_path.exists():
             raise FileNotFoundError(f"Checkpoint not found at: {ckpt_path}")
