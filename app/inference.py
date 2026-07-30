@@ -22,7 +22,7 @@ class InferenceModel:
       - "img_size": int (e.g., 224)
     """
 
-    def __init__(self, ckpt_path: str | Path):
+    def __init__(self, ckpt_path: Optional[str | Path]):
         ckpt_path = Path(ckpt_path)
         if not ckpt_path.exists():
             raise FileNotFoundError(f"Checkpoint not found at: {ckpt_path}")
