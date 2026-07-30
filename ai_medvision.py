@@ -46,7 +46,7 @@ class CuteMedApp(ctk.CTk):
         super().__init__()
 
         # Window
-        self.title("AI-MedVision: Advanced Pneumonia Detection System")
+        self.title("AI-MedVision: Advanced Pneumonia Detection System 🏥")
         self.geometry("950x640")
         self.minsize(900, 600)
 
