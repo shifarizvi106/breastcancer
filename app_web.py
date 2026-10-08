@@ -3,154 +3,99 @@ cat > app_web.py << 'EOF'
 import streamlit as st
 from PIL import Image
 from app.inference import get_model
-import os
 
-st.set_page_config(
-    page_title="AI-MedVision - Breast Cancer Detection",
-    page_icon="🎗️",
-    layout="centered"
-)
+st.set_page_config(page_title="Breast Cancer Predictor", layout="wide")
 
-# Custom CSS for pink theme with better readability
 st.markdown("""
-    <style>
-    .stApp {
-        background: linear-gradient(135deg, #ffe4f0, #ffd2e6);
-    }
-    .main {
-        background: white;
-        border-radius: 20px;
-        padding: 30px;
-    }
-    /* Fix text colors */
-    .stMarkdown, .stText, .stMetric, .stProgress > div > div {
-        color: #1a1a1a !important;
-    }
-    /* Fix progress text */
-    .stProgress > div > div > div {
-        color: #1a1a1a !important;
-    }
-    /* Fix metric labels */
-    [data-testid="stMetricLabel"] {
-        color: #1a1a1a !important;
-    }
-    [data-testid="stMetricValue"] {
-        color: #1a1a1a !important;
-    }
-    </style>
+<style>
+.stApp { background: #f4dad4; }
+h1, h2, h3, h4, h5, h6, p, label, div, span, button {
+    color: #2e4060 !important;
+    font-family: 'Times New Roman', Times, serif !important;
+}
+h1 { text-align: center; font-size: 2.8rem; margin-bottom: 0; }
+.subtitle { text-align: center; font-size: 0.95rem; opacity: 0.75; margin-top: 0; margin-bottom: 30px; }
+.block-container { padding-top: 1.5rem !important; }
+.stButton > button {
+    background: #dd8c96 !important;
+    color: #f4dad4 !important;
+    border: none !important;
+    padding: 14px 50px !important;
+    border-radius: 30px !important;
+    font-size: 1.1rem !important;
+    width: 100% !important;
+}
+.stButton > button:hover { background: #c97a85 !important; }
+.stFileUploader > div > div {
+    border: 2px dashed #dd8c96 !important;
+    border-radius: 12px !important;
+    background: rgba(255,255,255,0.5) !important;
+    padding: 30px !important;
+}
+.stFileUploader label { color: #2e4060 !important; }
+.stColumn {
+    background: white !important;
+    border-radius: 12px !important;
+    padding: 25px !important;
+    box-shadow: 0 2px 10px rgba(46,64,96,0.08) !important;
+}
+.stImage img { border-radius: 12px !important; }
+.stProgress > div > div { background: #f4dad4 !important; border-radius: 20px !important; height: 8px !important; }
+.stProgress > div > div > div { border-radius: 20px !important; }
+hr { border-color: rgba(46,64,96,0.15) !important; margin: 20px 0 !important; }
+.result-malignant { background: rgba(46,64,96,0.08); border-left: 5px solid #2e4060; padding: 20px; border-radius: 8px; margin: 10px 0; }
+.result-benign { background: rgba(221,140,150,0.15); border-left: 5px solid #dd8c96; padding: 20px; border-radius: 8px; margin: 10px 0; }
+.result-label { font-size: 1.8rem !important; font-weight: 700 !important; }
+.result-conf { font-size: 1rem !important; opacity: 0.8; }
+.disclaimer { text-align: center; font-size: 0.8rem; opacity: 0.6; margin-top: 30px; padding-top: 15px; border-top: 1px solid rgba(46,64,96,0.15); }
+</style>
 """, unsafe_allow_html=True)
 
-st.title("🎗️ AI-MedVision")
-st.markdown("### Breast Cancer Detection from Mammogram/Histopathology Images")
+st.markdown('<h1>Breast Cancer Detection</h1>', unsafe_allow_html=True)
+st.markdown('<p class="subtitle">Disclaimer: This AI tool is for educational purposes only. Always consult a qualified healthcare professional for medical decisions.</p>', unsafe_allow_html=True)
 
-# Load model
 @st.cache_resource
 def load_model():
     return get_model()
 
 try:
     model = load_model()
-    # Get actual classes from model
-    classes = model.classes
-    st.success(f"✅ Model loaded successfully! Detects: {', '.join(classes)}")
 except Exception as e:
-    st.error(f"❌ Error loading model: {e}")
+    st.error(f"Error loading model: {e}")
     st.stop()
 
-# Upload
-uploaded_file = st.file_uploader(
-    "Upload Breast Tissue Image",
-    type=['jpg', 'jpeg', 'png', 'tiff'],
-    help="Upload a mammogram or histopathology image for breast cancer detection"
-)
+col1, col2 = st.columns([1, 1], gap="large")
 
-if uploaded_file:
-    # Display image
-    image = Image.open(uploaded_file).convert('RGB')
-    col1, col2, col3 = st.columns([1, 2, 1])
-    with col2:
-        st.image(image, caption='Uploaded Image', use_container_width=True)
-    
-    # Predict button
-    if st.button("🔍 Predict", use_container_width=True, type="primary"):
-        with st.spinner("Analyzing image with AI..."):
-            try:
+with col1:
+    uploaded_file = st.file_uploader("Upload Image", type=['jpg', 'jpeg', 'png', 'tiff'])
+    if uploaded_file:
+        image = Image.open(uploaded_file).convert('RGB')
+        st.image(image, use_container_width=True)
+
+with col2:
+    if uploaded_file:
+        if st.button("Predict", use_container_width=True):
+            with st.spinner("Analyzing..."):
                 result = model.predict(image)
-                
-                # Get the label and confidence
                 label = result['label']
                 confidence = result['confidence'] * 100
-                is_cancer = label.upper() == 'MALIGNANT'
-                
-                # Display results with big, readable text
+                probs = result['probs']
+                is_malignant = 'maglinant' in label.lower()
+
                 st.markdown("---")
-                st.markdown("## 📊 Results")
-                
-                col1, col2 = st.columns(2)
-                
-                with col1:
-                    st.metric(
-                        "Diagnosis",
-                        label,
-                        delta="⚠️ CANCER DETECTED" if is_cancer else "✅ CLEAR"
-                    )
-                
-                with col2:
-                    st.metric(
-                        "Confidence",
-                        f"{confidence:.1f}%"
-                    )
-                
-                # Risk assessment with clear colors
-                if is_cancer:
-                    st.error(f"⚠️ **HIGH RISK** - Malignant detected with {confidence:.1f}% confidence. Please consult a doctor immediately.")
+                st.markdown("#### Results")
+
+                if is_malignant:
+                    st.markdown(f'<div class="result-malignant"><div class="result-label">Malignant</div><div class="result-conf">Confidence: {confidence:.1f}%</div><p>Please consult a healthcare professional immediately.</p></div>', unsafe_allow_html=True)
                 else:
-                    st.success(f"✅ **LOW RISK** - Benign with {confidence:.1f}% confidence. Continue regular screening.")
-                
-                # Probability bars with better visibility
-                st.markdown("### 📊 Class Probabilities")
-                for cls, prob in result['probs'].items():
-                    prob_percent = prob * 100
-                    # Color coding
-                    if cls.upper() == 'MALIGNANT':
-                        color = "#ff4444"  # Red for malignant
-                        emoji = "⚠️"
-                    else:
-                        color = "#4CAF50"  # Green for benign
-                        emoji = "✅"
-                    
-                    # Display with custom bar
-                    st.markdown(f"""
-                        <div style="margin: 10px 0;">
-                            <div style="display: flex; justify-content: space-between; color: #1a1a1a; font-weight: bold;">
-                                <span>{emoji} {cls}</span>
-                                <span>{prob_percent:.1f}%</span>
-                            </div>
-                            <div style="width: 100%; height: 25px; background: #f0f0f0; border-radius: 12px; overflow: hidden; border: 1px solid #ddd;">
-                                <div style="width: {prob_percent}%; height: 100%; background: {color}; border-radius: 12px; transition: width 0.8s ease;"></div>
-                            </div>
-                        </div>
-                    """, unsafe_allow_html=True)
-                
-                # Additional info
-                st.markdown("---")
-                st.markdown("### 💡 What this means:")
-                if is_cancer:
-                    st.markdown("""
-                        - 🏥 **Action Required**: Please schedule an appointment with an oncologist
-                        - 📋 **Follow-up**: Additional tests may be recommended
-                        - 💊 **Treatment**: Early detection improves treatment outcomes
-                    """)
-                else:
-                    st.markdown("""
-                        - 📋 **Continue Screening**: Regular check-ups are important
-                        - 🏥 **Monitor**: Report any changes to your doctor
-                        - ✅ **Good News**: No immediate action required
-                    """)
-                
-                st.info("⚕️ **Disclaimer**: This AI tool is for educational purposes only. Always consult a qualified healthcare professional for medical decisions.")
-                    
-            except Exception as e:
-                st.error(f"❌ Prediction failed: {e}")
-                st.error("Please make sure the image is a valid breast tissue/mammogram image.")
+                    st.markdown(f'<div class="result-benign"><div class="result-label">Benign</div><div class="result-conf">Confidence: {confidence:.1f}%</div><p>No malignancy detected. Continue regular screening.</p></div>', unsafe_allow_html=True)
+
+                st.markdown("#### Confidence Breakdown")
+                for cls, prob in probs.items():
+                    name = "Malignant" if "maglinant" in cls.lower() else "Benign"
+                    st.progress(prob, text=f"{name}: {prob*100:.1f}%")
+    else:
+        st.markdown('<p style="text-align:center; opacity:0.5; padding:40px 0;">Upload an image to begin analysis</p>', unsafe_allow_html=True)
+
+st.markdown('<p class="disclaimer">Disclaimer: This AI tool is for educational purposes only. Always consult a qualified healthcare professional for medical decisions.</p>', unsafe_allow_html=True)
 EOF
